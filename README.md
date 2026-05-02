@@ -1,234 +1,207 @@
-# Richards 3D - Newton Solver for Deformable Porous Media
+# Coupled Richards Equation - Newton Solver for Deformable Porous Media
 
-[![MATLAB](https://img.shields.io/badge/MATLAB-R2020b+-0076A8.svg)](https://www.mathworks.com/products/matlab.html)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Research](https://img.shields.io/badge/Research-Porous%20Media-1f425f.svg)](https://github.com/)
+MATLAB solver for coupled Richards equation in deformable porous media (Vertisol).
 
-## Overview
+## Quick Start
 
-This repository contains a MATLAB implementation of the **Newton solver for the 3D Richards equation in deformable porous media (Vertisol)**. The code solves coupled hydro-mechanical problems in unsaturated deformable porous media using finite element methods.
-
-## Key Features
-
-- **3D finite element solver** for the Richards equation in deformable media.
-- **Newton method** with adaptive damping through the parameter `lambda`.
-- **Mixed boundary conditions**: Neumann, Dirichlet, and mixed cases.
-- **Deformable porous media model** based on Vertisol constitutive laws.
-- **Parallel-ready batch simulation framework**.
-- **Comprehensive visualization tools** for numerical and physical result analysis.
-
-## Repository Structure
-
-```text
-.
-├── VALIDATION/                         # Numerical validation cases
-│   ├── main_validation.m               # Validation simulation script
-│   └── results/                        # Simulation results, auto-generated
-│
-├── PHYSIQUE/                           # Physical simulation cases
-│   ├── main_phy.m                      # Physical simulation script
-│   └── results/                        # Simulation results, auto-generated
-│
-├── src/                                # Source code
-│   ├── FEM/                            # Finite element routines
-│   ├── models/                         # Physical models: Vertisol, van Genuchten
-│   ├── solvers/                        # Newton and iterative solvers
-│   └── utils/                          # Utility functions
-│
-├── examples/                           # Example scripts and exact solutions
-│
-├── Analyse_differentes_methodes.m      # Visualization tool
-├── run_simulations.m                   # Main launcher script
-│
-└── README.md                           # This file
-```
-
-## Requirements
-
-- **MATLAB R2020b or later**
-- MATLAB toolboxes:
-  - Partial Differential Equation Toolbox
-  - Statistics and Machine Learning Toolbox, mainly for visualization
-
-## Installation
-
-Clone the repository:
-
-```bash
-git clone https://github.com/yourusername/richards-3d-newton.git
-cd richards-3d-newton
-```
-
-Then add all subfolders to the MATLAB path. This is automatically handled by the main scripts.
-
-## Usage
-
-### Quick Start
-
-Run the main launcher from the MATLAB command window:
+### 1. Run simulations
 
 ```matlab
 run_simulations
 ```
 
-### Simulation Modes
+The launcher will ask:
+- `1` - Run VALIDATION simulation
+- `2` - Run PHYSIQUE simulation
+- `3` - Run both simulations
+- `4` - Visualize only (use this when you already ran simulations and want to see results)
 
-| Mode | Description | Script |
-|---|---|---|
-| Validation | Numerical validation with exact solutions | `main_validation.m` |
-| Physical | Realistic physical simulations | `main_phy.m` |
-| Both | Run both simulations sequentially | Launcher option 4 |
+After simulation completes, you will see:
+```
+Simulation PHYSIQUE completed in 24.95 seconds.
+Launch visualization? (y/n) [y]:
+```
+- Type `y` to open the visualization tool immediately
+- Type `n` to exit
 
-## Batch Simulation Parameters
+### 2. If you exit MATLAB
 
-| Parameter | Description | Typical values |
-|---|---|---|
-| `Nx_list` | Mesh resolution | `[9, 17, 33, 65]` |
-| `dt` | Time step, in hours | `0.05` to `0.5` |
-| `t_final` | Final simulation time, in hours | `1.0` to `8.0` |
-| `lambda` | Newton damping parameter | `0.5` to `1.0` |
-| `test_cond` | Boundary condition type | `1` Neumann, `2` Dirichlet, `3` Mixed |
+You can always reopen the visualization tool later using **TWO ways**:
 
-## Output Structure
+**Way 1 - Using the launcher:**
+```matlab
+run_simulations
+```
+Then select option `4` (Visualize only)
 
-Results are organized in hierarchical folders:
+**Way 2 - Direct access:**
+```matlab
+Analyse_differentes_methodes
+```
 
-```text
+No need to re-run the simulation.
+
+### 3. Results location
+
+After simulation, results are saved in:
+
+```
 results/
 ├── numerical_validation/
 │   └── Newton/
+│       ├── lambda_0.60/
+│       │   └── dt_0.0500/
+│       │       ├── resultats_complets/
+│       │       │   └── resultats_complets.mat
+│       │       └── solutions_temporelles/
+│       │           └── solution_nx*.mat
 │       └── lambda_1.00/
 │           └── dt_0.0500/
-│               ├── resultats_complets/      # Complete simulation data
-│               └── solutions_temporelles/   # Time snapshots
+│               ├── resultats_complets/
+│               └── solutions_temporelles/
 │
 └── physique/
     └── Newton/
-        └── lambda_0.50/
-            └── dt_0.2500/
+        ├── lambda_0.60/
+        │   └── dt_0.0500/
+        │       ├── resultats_complets/
+        │       └── solutions_temporelles/
+        └── lambda_1.00/
+            └── dt_0.0500/
                 ├── resultats_complets/
                 └── solutions_temporelles/
 ```
 
-## Visualization
+Each `lambda_X/` folder contains results for a specific damping parameter value.
 
-Launch the visualization tool from MATLAB:
+### 4. View results table manually
+
+To see the numerical results (errors, CPU time, iterations), navigate to:
+
+```
+VALIDATION/results/numerical_validation/Newton/lambda_X/dt_Y/resultats_complets/
+```
+
+or
+
+```
+PHYSIQUE/results/physique/Newton/lambda_X/dt_Y/resultats_complets/
+```
+
+Open the file `resume_resultats.txt` in any text editor. It contains:
+
+```
+h       dt        L1          L2          Linf        H1          It.last  It.mean   CPU(s)
+1/8     0.0500    1.23e-03    2.34e-03    1.56e-03    4.56e-02    8        6.50      12.34
+1/16    0.0500    3.45e-04    5.67e-04    4.12e-04    1.23e-02    10       8.20      45.67
+```
+
+The file `resultats_complets.mat` (MATLAB format) contains:
+- `Erreur_L1`, `Erreur_L2`, `Erreur_H1`, `Erreur_Linf` - Numerical errors
+- `CPU_times` - Computation time per mesh
+- `Newton_iters_last`, `Newton_iters_moyenne` - Newton iterations
+- `Cond_max`, `Cond_moyen` - Matrix conditioning
+
+### 5. Visualization tool
 
 ```matlab
 Analyse_differentes_methodes
 ```
 
-### Visualization Features
+Then navigate through the menus:
 
-| Feature | Description |
-|---|---|
-| 3D isosurface | Visualize solution fields at any time |
-| Cross-sections | View 2D slices along the `x`, `y`, or `z` axes |
-| Convergence analysis | Plot `L2` and `H1` errors versus mesh size |
-| Iteration history | Analyze Newton convergence rates |
-| Conditioning analysis | Study matrix condition numbers |
-| CPU performance | Analyze computation time |
-| Field comparison | Compare exact and approximate solutions |
+```
+--- MAIN MENU ---
+1. Visualize VALIDATION folder results
+2. Visualize PHYSIQUE folder results
+3. Exit
 
-## Examples
+Your choice: 2
 
-### Run a validation simulation
+Available lambda values:
+1 - lambda = 0.60
+2 - lambda = 1.00
+Your choice: 1
 
-In `main_validation.m`, set for example:
-
-```matlab
-Nx_list   = [9, 17, 33];   % Mesh resolutions
-dt        = 0.05;          % Time step
-t_final   = 1.0;           % Final time
-lambda    = 1.0;           % Newton damping
-test_cond = 1;             % Neumann boundary condition
+Available time steps:
+1 - dt = 0.0500
+Your choice: 1
 ```
 
-### Run a physical simulation
+### Visualization Menu Options
 
-In `main_phy.m`, set for example:
+| Option | Description |
+|--------|-------------|
+| 1 | 3D Isosurface at given time |
+| 2 | 2D Cross-section (x, y, or z constant) |
+| 3 | Convergence by mesh (single scheme) |
+| 4 | Convergence by mesh (all schemes) - Compares different lambda values |
+| 5 | Compare schemes (CPU, iterations, errors, conditioning) |
+| 0 | Back |
 
-```matlab
-Nx_list       = [17];          % Single mesh
-dt            = 0.25;          % Time step, in hours
-t_final       = 8.0;           % 8-hour simulation
-lambda        = 0.5;           % Damping parameter
-vertisol_mode = 'deformable';  % Deformable soil model
+### Example: Compare different lambda values (Option 4)
+
+```
+Available meshes (h):
+  1 - h = 0.063000 (1/16)
+  2 - h = 0.125000 (1/8)
+
+Select mesh numbers to display (e.g., 1 3 5) or "all": all
+
+Y-axis: 1 log10(error) | 2 raw error [1]: 1
 ```
 
-### Visualize results
+This generates a figure showing Newton convergence for each lambda value.
 
-After a simulation, run:
+### Note on Option 4
 
-```matlab
-Analyse_differentes_methodes
+Option 4 ("Convergence by mesh (all schemes)") compares different lambda values.
+If only one lambda is available, the curve will still display but no comparison is possible.
+
+## Parameters (Edit in main_validation.m or main_phy.m)
+
+| Parameter | Description | Example |
+|-----------|-------------|---------|
+| `Nx_list` | Mesh resolution vector | `[9, 17, 33]` |
+| `dt` | Time step (hours) | `0.05` |
+| `t_final` | Final time (hours) | `1.0` |
+| `lambda` | Newton damping | `0.5` to `1.0` |
+| `test_cond` | Boundary condition | `1` (Neumann), `2` (Dirichlet), `3` (Mixed) |
+
+## Requirements
+
+- MATLAB R2020b or later
+
+## Folder Structure
+
 ```
-
-Then select:
-
-- Folder: `VALIDATION` or `PHYSIQUE`
-- Case: `numerical_validation` or `physique`
-- Lambda and `dt` values
-- Visualization type: isosurface, cross-section, convergence analysis, etc.
-
-## Error Analysis
-
-The code computes convergence orders. For example, convergence rates are displayed in the MATLAB console as follows:
-
-```matlab
-% h = 0.1250 -> h = 0.0625 : L2 = 1.98, H1 = 1.01
-% h = 0.0625 -> h = 0.0312 : L2 = 2.01, H1 = 0.99
+├── VALIDATION/                 # Numerical validation cases
+│   ├── main_validation.m       # Validation simulation script
+│   └── results/                # Simulation results (auto-generated)
+│
+├── PHYSIQUE/                   # Physical simulation cases
+│   ├── main_phy.m              # Physical simulation script
+│   └── results/                # Simulation results (auto-generated)
+│
+├── src/                        # Source code
+│   ├── FEM/                    # Finite element routines
+│   ├── models/                 # Physical models (Vertisol, van Genuchten)
+│   ├── solvers/                # Newton solvers
+│   └── utils/                  # Utility functions
+│
+├── examples/                   # Example scripts and exact solutions
+│
+├── Analyse_differentes_methodes.m  # Visualization tool
+├── run_simulations.m               # Main launcher
+│
+└── README.md                   # This file
 ```
-
-## Citation
-
-If you use this code in your research, please cite:
-
-```bibtex
-@software{moelevou_richards_2026,
-  author    = {Moelevou, Alhadiri},
-  title     = {Richards 3D Newton Solver for Deformable Porous Media},
-  year      = {2026},
-  publisher = {GitHub},
-  url       = {https://github.com/yourusername/richards-3d-newton}
-}
-```
-
-## Troubleshooting
-
-### Common Issues
-
-| Issue | Solution |
-|---|---|
-| Source folder not found | Ensure that `run_simulations.m` is in the parent directory containing `VALIDATION/` and `PHYSIQUE/`. |
-| Lambda values not detected | Check the folder structure: `results/*/Newton/lambda_*/dt_*`. |
-| No error history | Some visualizations require the field `newton_err_history_all` in the saved data. |
-
-### Debug Mode
-
-Enable verbose output by uncommenting `fprintf` statements in:
-
-```text
-src/solvers/solveNonLinearNewton.m
-src/FEM/kpde3derr_all.m
-```
-
-## License
-
-MIT License. See the `LICENSE` file for details.
 
 ## Author
 
-**Alhadiri MOELEVOU**  
-Université Clermont Auvergne - LIMOS  
-Email: [alhadiri.moelevou@uca.fr](mailto:alhadiri.moelevou@uca.fr)
+Alhadiri MOELEVOU - Universite Clermont Auvergne - LIMOS
 
-## Acknowledgments
 
-- Laboratoire d'Informatique, de Modélisation et d'Optimisation des Systèmes (LIMOS)
-- Université Clermont Auvergne
+## License
 
----
-
-Last updated: April 2026  
-Version: 2.0, Newton solver
+MIT
