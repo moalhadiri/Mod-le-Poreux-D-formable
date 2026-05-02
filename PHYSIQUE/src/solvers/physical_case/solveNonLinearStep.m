@@ -1,10 +1,30 @@
 function [u, iterNL, kappa_hist, cond_diagnostic] = solveNonLinearStep(lambda,p,t,k,ibcd,inodes,eps1,time,up,test_id,test_cond)
-% Version avec diagnostic du conditionnement simplifié
-% MODIFICATION: Solveur linéaire GMRES avec ILU/ICHOL + stockage historique Newton
+% SOLVENONLINEARSTEP - Newton solver for Richards equation with GMRES
+%   Solves the nonlinear Richards equation using Newton's method with
+%   adaptive damping and GMRES linear solver with ILU/ICHOL preconditioning.
+%
+%   Inputs:
+%       lambda      - Newton damping parameter (0 < lambda <= 1)
+%       p           - Node coordinates matrix (np x 3)
+%       t           - Tetrahedral connectivity matrix
+%       k           - Time step coefficient (1/dt)
+%       ibcd        - Dirichlet boundary condition nodes
+%       inodes      - Free nodes (interior nodes)
+%       eps1        - Nonlinear convergence tolerance
+%       time        - Current simulation time
+%       up          - Solution from previous time step
+%       test_id     - Source term identifier
+%       test_cond   - Boundary condition identifier
+%
+%   Outputs:
+%       u               - Solution vector
+%       iterNL          - Number of Newton iterations
+%       kappa_hist      - Condition number history
+%       cond_diagnostic - Structure with conditioning and GMRES diagnostics
 
 np = size(p,1);
 
-% ========= Dirichlet comme dans le premier code : u = uex sur ibcd =========
+% Dirichlet boundary conditions: set to -5 (as in reference implementation)
 u0 = up;
 u0(ibcd) = -5;
 ubcd = u0;
@@ -17,29 +37,31 @@ coef = 1;
 M = kpde3dmass(p,t,1);
 w = zeros(np,1);
 
-% Historiques
+% History arrays
 kappa_hist = zeros(1000,1);
-newton_err_history = zeros(1000,1);  % AJOUT: historique des erreurs Newton
+newton_err_history = zeros(1000,1);
 cond_diagnostic = struct();
 cap = numel(kappa_hist);
 
 % ============================================================
-% AJOUT: Réglages GMRES + préconditionneurs
+% GMRES solver settings with preconditioners
 % ============================================================
 tol_gmres = 1e-6;
 restart_default = 50;
 maxit_total = 500;
 
+% ILU preconditioner options
 opts_ilu.type = 'ilutp';
 opts_ilu.droptol = 1e-3;
 opts_ilu.udiag = 1;
 
+% ICHOL preconditioner options (fallback)
 opts_ichol.type = 'ict';
 opts_ichol.michol = 'on';
 opts_ichol.droptol = 1e-3;
 opts_ichol.diagcomp = 1e-3;
 
-% Stats GMRES
+% GMRES statistics
 gmres_iter_sum = 0;
 gmres_calls = 0;
 gmres_iter_history = {};
@@ -51,17 +73,20 @@ perm = [];
 Lpre = [];
 Upre = [];
 
-% Point de départ pour Newton
+% Initial guess
 u = up;
 u(ibcd) = -5;
 
+% ============================================================
+% Newton iteration loop
+% ============================================================
 while (err > eps1 && iterNL < IterMaxNL)
     iterNL = iterNL + 1;
     
-    % Stockage de l'erreur courante (AJOUT)
+    % Store current error for convergence history
     newton_err_history(iterNL) = err;
 
-    % Assemblage (IDENTIQUE)
+    % Assemble Jacobian and residual
     Rp = kpde3drgd(p,t,coef.*tgam6(u,t),coef.*tgam6(u,t),coef.*gam6(u,t));
     nux = talpha2(u,p,t) + talpha3(u,p,t);
     nuz = alpha2(u,p,t) + alpha3(u,p,t);
@@ -82,26 +107,26 @@ while (err > eps1 && iterNL < IterMaxNL)
 
     b = b + b1 - Rp*u - D0 - (1/k)*b2;
 
-    % Système linéaire
+    % Linear system assembly
     A = (1/k)*MC + Ms + Rp + D;
 
-    % CONDITIONS DE BORD
+    % Apply Dirichlet boundary conditions
     b = b - A * ubcd;
     b(ibcd) = [];
     A(:,ibcd) = [];
     A(ibcd,:) = [];
 
-    % Conditionnement
+    % Condition number estimation
     kappa = condest(A);
     if iterNL > cap
-        kappa_hist = [kappa_hist; zeros(cap,1)]; %#ok<AGROW>
-        newton_err_history = [newton_err_history; zeros(cap,1)]; %#ok<AGROW>
+        kappa_hist = [kappa_hist; zeros(cap,1)];
+        newton_err_history = [newton_err_history; zeros(cap,1)];
         cap = numel(kappa_hist);
     end
     kappa_hist(iterNL) = kappa;
 
     % ============================================================
-    % Solve linéaire GMRES + ILU/ICHOL
+    % Linear solve using GMRES with ILU/ICHOL preconditioner
     % ============================================================
     if isempty(perm) || mod(iterNL-1,reuseEvery)==0 || isempty(Lpre)
         perm = amd(A);
@@ -109,9 +134,11 @@ while (err > eps1 && iterNL < IterMaxNL)
         bp = b(perm);
 
         Lpre = []; Upre = [];
+        % Try ILU first
         try
             [Lpre,Upre] = ilu(Ap, opts_ilu);
         catch
+            % Fallback to ICHOL if ILU fails
             try
                 R = ichol(Ap, opts_ichol);
                 Lpre = R; Upre = R';
@@ -129,63 +156,69 @@ while (err > eps1 && iterNL < IterMaxNL)
     max_outer = ceil(maxit_total / max(1,restart));
     x0 = zeros(size(bp));
 
+    % Solve with or without preconditioner
     if ~isempty(Lpre)
         [wip, flag, relres, itGM] = gmres(Ap, bp, restart, tol_gmres, max_outer, Lpre, Upre, x0);
     else
         [wip, flag, relres, itGM] = gmres(Ap, bp, restart, tol_gmres, max_outer, [], [], x0);
     end
 
+    % Compute total iterations
     if numel(itGM)==2
         itTotal = itGM(1)*restart + itGM(2);
     else
         itTotal = itGM;
     end
 
-    % Stockage des stats GMRES
+    % Store GMRES statistics
     gmres_iter_history{iterNL} = itTotal;
     gmres_flag_history{iterNL} = flag;
     gmres_relres_history{iterNL} = relres;
     gmres_calls = gmres_calls + 1;
     gmres_iter_sum = gmres_iter_sum + max(0, itTotal);
 
-    % Dé-permutation
+    % Inverse permutation
     if flag ~= 0
+        % Fallback to direct solver if GMRES fails
         wi = A \ b;
     else
         wi = zeros(size(b));
         wi(perm) = wip;
     end
 
-    % Mise à jour de la solution
+    % Update solution
     w(inodes) = wi;
-   
     u = u + lambda .* w;
 
-    % Calcul de l'erreur (sera stockée au début de la prochaine itération)
+    % Compute error norm
     err = sqrt((w' * M * w) / max((u' * M * u), eps));
 end
 
-% Post-analysis
+% ============================================================
+% Post-processing and diagnostics
+% ============================================================
 kappa_hist = kappa_hist(1:iterNL);
-newton_err_history = newton_err_history(1:iterNL);  % AJOUT
+newton_err_history = newton_err_history(1:iterNL);
 
+% Conditioning diagnostics
 cond_diagnostic.final_kappa = kappa_hist(end);
 cond_diagnostic.max_kappa = max(kappa_hist);
 cond_diagnostic.mean_kappa = mean(kappa_hist);
 
-% AJOUT: Stockage de l'historique Newton
+% Newton iteration diagnostics
 cond_diagnostic.newton_err_history = newton_err_history;
 cond_diagnostic.newton_iter_total = iterNL;
 
-% Stats GMRES
+% GMRES statistics
 cond_diagnostic.gmres_calls = gmres_calls;
 cond_diagnostic.gmres_it_avg = gmres_iter_sum / max(gmres_calls,1);
 cond_diagnostic.gmres_iter_history = gmres_iter_history;
 cond_diagnostic.gmres_flag_history = gmres_flag_history;
 cond_diagnostic.gmres_relres_history = gmres_relres_history;
 
+% Convergence warning
 if iterNL >= IterMaxNL
-    warning('Non-convergence après %d itérations (err=%e)', IterMaxNL, err);
+    warning('Non-convergence after %d iterations (err=%e)', IterMaxNL, err);
 end
 
 end
